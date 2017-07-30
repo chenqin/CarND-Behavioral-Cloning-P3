@@ -3,12 +3,13 @@ from random import randint
 import matplotlib.pyplot as plt
 import ipdb
 import math
+import cv2
 
 # load data
-trannings = pandas.read_csv('sample/driving_log.csv', names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+trannings = pandas.read_csv('data/driving_log.csv', names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train = trannings['steering'].values
 
-# drop 80% of straight moving examples, skip header index = 0
+# drop 6/7 of straight moving examples, skip header index = 0
 drop_rows = [i for i in range(1, len(y_train)) if math.fabs(float(y_train[i])) < 0.25 and randint(0, 6) != 0]
 trannings.drop(drop_rows, inplace=True)
 
@@ -18,10 +19,23 @@ flip_trainnings = trannings.copy()
 for i in range(1, len(flip_trainnings['steering'].values)):
     flip_trainnings['steering'].values[i] = -float(flip_trainnings['steering'].values[i])
 
+# merge fliped tranning data with original tranning data
 trannings.append(flip_trainnings)
 y_train = trannings['steering'].values
-# make sure steering data has nice distribution
-plt.hist(pandas.to_numeric(trannings['steering'][1:]))
-plt.ylabel('steering values distribution')
-plt.show()
 
+# make sure steering data has nice distribution
+#plt.hist(pandas.to_numeric(trannings['steering'][1:]))
+#plt.ylabel('steering values distribution')
+#plt.show()
+
+# open as grayscale, crop non road portion of image, original image is 160x320
+def crop_non_road(filepath):
+    img = cv2.imread(filepath, 0)
+    crop_img = img[50:130,:]
+    return crop_img
+
+#test crop
+#cv2.imshow("cropped", crop_non_road('/Users/cq/CarND-Behavioral-Cloning-P3/data/IMG/center_2017_07_30_13_22_07_801.jpg'))
+#cv2.waitKey(0)
+
+#TODO: transfer learning with nvidia model
