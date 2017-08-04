@@ -8,7 +8,7 @@ from keras.backend import tf as ktf
 import math
 import cv2
 import os
-
+import json
 from keras.layers import Dense, ZeroPadding2D, Convolution2D, MaxPooling2D, Dropout
 from keras.layers import Flatten
 from keras.models import Sequential
@@ -55,7 +55,7 @@ def X_train_gen(trainning):
         #convert to YUV planes
         image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
         #resize image to
-        image = cv2.resize(image, (66, 200), interpolation=cv2.INTER_AREA)
+        image = cv2.resize(image, (200, 66), interpolation=cv2.INTER_AREA)
 
         # do random flip of 50% of images to avoid left turn bias
         if randint(0,1) == 1:
@@ -82,8 +82,23 @@ trannings.drop(drop_rows, inplace=True)
 
 def nvida_model(X_train, y_train):
     model = Sequential()
-    model.add(BatchNormalization())
-    model.add(Convolution2D())
+    model.add(BatchNormalization(input_shape=(200,66,3)))
+    model.add(Convolution2D(24, 5, 5, activation='relu'))
+    model.add(Convolution2D(36, 5, 5, activation='relu'))
+    model.add(Convolution2D(48, 3, 3, activation='relu'))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
+    model.add(Flatten())
+    model.add(Dense(1164, activation='relu'))
+    model.add(Dense(100, activation='relu'))
+    model.add(Dense(50, activation='relu'))
+    model.add(Dense(10, activation='relu'))
+    model.add(Dense(1, activation='tanh'))
+
+    model.summary()
+    # Save model to JSON
+    with open('autopilot_basic_model.json', 'w') as outfile:
+        outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
 
 
 X_train, y_train = X_train_gen(trainning=trannings)
