@@ -2,8 +2,8 @@ import pandas
 from random import randint
 import numpy as np
 import matplotlib.pyplot as plt
-import ipdb
 import random
+from sklearn.utils import shuffle
 from keras.backend import tf as ktf
 import math
 import cv2
@@ -15,12 +15,14 @@ from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.layers.normalization import BatchNormalization
 
+home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/'
+
 def my_resize_function(input):
     return ktf.image.resize_images(input, (64, 64))
 
 
 def load_image(filepath):
-    path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/data/IMG/' + os.path.split(filepath)[1]
+    path = home_path + 'data/IMG/' + os.path.split(filepath)[1]
     return cv2.imread(path)
 
 
@@ -28,45 +30,48 @@ def load_image(filepath):
 # flip image, and change steering to opposite direction
 # open image as grey scale, resize to 64x64x1
 # normalize image to (-1, 1)
-def X_train_gen(trainning):
-    centers = trainning['center'].values
-    lefts = trainning['left'].values
-    rights = trainning['right'].values
-    steerings = trannings['steering'].values
+def X_train_gen(trainning, batch_size):
+    X_train = np.zeros((batch_size, 66, 200, 3))
+    y_train = np.zeros(batch_size)
 
-    X_train = np.zeros((len(steerings), 66, 200, 3))
-    y_train = np.zeros(len(steerings))
+    while True:
+        trainning = shuffle(trainning)
+        centers = trainning['center'].values
+        lefts = trainning['left'].values
+        rights = trainning['right'].values
+        steerings = trannings['steering'].values
 
-    for i in range(1, len(centers)):
-        #overlap left , center, right into trainning set
-        choice = randint(0,2)
-        filepath = ""
-        if choice == 0:
-            filepath = centers[i]
-            y_train[i] = float(steerings[i])
-        elif choice == 1:
-            filepath = lefts[i]
-            y_train[i] = float(steerings[i]) + 0.3
-        else:
-            filepath = rights[i]
-            y_train[i] = float(steerings[i]) - 0.3
+        for i in range(1, batch_size):
+            #overlap left , center, right into trainning set
+            choice = randint(0,2)
+            filepath = ""
+            if choice == 0:
+                filepath = centers[i]
+                y_train[i] = float(steerings[i])
+            elif choice == 1:
+                filepath = lefts[i]
+                y_train[i] = float(steerings[i]) + 0.3
+            else:
+                filepath = rights[i]
+                y_train[i] = float(steerings[i]) - 0.3
 
-        image = load_image(filepath)[50:130, :]
-        #convert to YUV planes
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
-        #resize image to
-        image = cv2.resize(image, (200, 66), interpolation=cv2.INTER_AREA)
+            image = load_image(filepath)[50:130, :]
+            #convert to YUV planes
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
+            #resize image to
+            image = cv2.resize(image, (200, 66), interpolation=cv2.INTER_AREA)
 
-        # do random flip of 50% of images to avoid left turn bias
-        if randint(0,1) == 1:
-            image = cv2.flip(image, 1)
-            y_train[i] = -y_train[i]
+            # do random flip of 50% of images to avoid left turn bias
+            if randint(0,1) == 1:
+                image = cv2.flip(image, 1)
+                y_train[i] = -y_train[i]
 
-        X_train[i] = image
-    return X_train, y_train
+            X_train[i] = image
+        yield X_train, y_train
+
 
 # load data
-trannings = pandas.read_csv('/Users/chenqin/CarND-Behavioral-Cloning-P3/data/driving_log.csv', names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+trannings = pandas.read_csv(home_path+'data/driving_log.csv', names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train_org = trannings['steering'].values
 
 # drop 3/4 of straight moving examples, skip header index = 0
@@ -77,8 +82,6 @@ trannings.drop(drop_rows, inplace=True)
 #plt.hist(y_train)
 #plt.ylabel('steering values distribution')
 #plt.show()
-
-#TODO: transfer learning with nvidia model
 
 def nvida_model():
     model = Sequential()
@@ -94,16 +97,17 @@ def nvida_model():
     model.add(Dense(50, activation='relu'))
     model.add(Dense(10, activation='relu'))
     model.add(Dense(1, activation='tanh'))
-    model.compile(optimizer="adam", loss="mse")
-
-    # Save model to JSON
-    with open('autopilot_basic_model.json', 'w') as outfile:
-        outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
-
+    model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
     return model
 
 
-X_train, y_train = X_train_gen(trainning=trannings)
 model = nvida_model()
 model.summary()
-history = model.fit(X_train, y_train, nb_epoch=3, validation_split=0.2)
+
+model.fit_generator(X_train_gen(trainning=trannings, batch_size=256), samples_per_epoch = 256, nb_epoch=10, validation_data = X_train_gen(trainning=trannings, batch_size=256), nb_val_samples = 256)
+
+# Save model to JSON
+with open('autopilot_basic_model.json', 'w') as outfile:
+    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
+
+model.save_weights("model.h5")
