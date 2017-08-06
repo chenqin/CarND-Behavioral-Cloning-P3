@@ -80,9 +80,9 @@ trannings.drop(drop_rows, inplace=True)
 
 #TODO: transfer learning with nvidia model
 
-def nvida_model(X_train, y_train):
+def nvida_model():
     model = Sequential()
-    model.add(BatchNormalization(input_shape=(200,66,3)))
+    model.add(BatchNormalization(input_shape=(66, 200, 3)))
     model.add(Convolution2D(24, 5, 5, activation='relu'))
     model.add(Convolution2D(36, 5, 5, activation='relu'))
     model.add(Convolution2D(48, 3, 3, activation='relu'))
@@ -94,12 +94,16 @@ def nvida_model(X_train, y_train):
     model.add(Dense(50, activation='relu'))
     model.add(Dense(10, activation='relu'))
     model.add(Dense(1, activation='tanh'))
+    model.compile(optimizer="adam", loss="mse")
 
-    model.summary()
     # Save model to JSON
     with open('autopilot_basic_model.json', 'w') as outfile:
         outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
 
+    return model
+
 
 X_train, y_train = X_train_gen(trainning=trannings)
-nvida_model(X_train, y_train)
+model = nvida_model()
+model.summary()
+history = model.fit(X_train, y_train, nb_epoch=3, validation_split=0.2)
