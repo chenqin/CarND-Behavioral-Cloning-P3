@@ -102,8 +102,8 @@ trannings = pandas.read_csv(home_path+'data/driving_log.csv', names=['center', '
 y_train_org = trannings['steering'].values
 
 # drop 3/4 of straight moving examples, skip header index = 0
-drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.25 and randint(0, 3) != 0]
-trannings.drop(drop_rows, inplace=True)
+#drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.25 and randint(0, 3) != 0]
+#trannings.drop(drop_rows, inplace=True)
 
 # exame distribution of steering bias
 #plt.hist(y_train)
@@ -137,8 +137,8 @@ def nvida_model():
 model = nvida_model()
 model.summary()
 
-model.fit_generator(X_train_gen(trainning=trannings, batch_size=256), samples_per_epoch = 25, nb_epoch=100,
-                    validation_data = X_valid_gen(validation=trannings, batch_size=256), nb_val_samples = 25)
+model.fit_generator(X_train_gen(trainning=trannings, batch_size=256), samples_per_epoch = 256, nb_epoch=100,
+                    validation_data = X_valid_gen(validation=trannings, batch_size=256), nb_val_samples = 256)
 
 # Save model to JSON
 with open('autopilot_basic_model.json', 'w') as outfile:
