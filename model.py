@@ -29,6 +29,8 @@ def load_image(filepath):
 def X_train_gen(trainning, batch_size):
     X_train = np.zeros((batch_size, 160, 320, 3), dtype=float)
     y_train = np.zeros(batch_size, dtype=float)
+    # use left and right camera need to make correction due to geometry factor
+    correction = 0.2
 
     while True:
         trainning = shuffle(trainning)
@@ -37,19 +39,19 @@ def X_train_gen(trainning, batch_size):
         rights = trainning['right'].values
         steerings = trannings['steering'].values
 
-        for i in range(1, batch_size+1):
+        for i in range(0, batch_size):
             #overlap left , center, right into trainning set
             choice = randint(0,2)
             filepath = ""
             if choice == 0:
                 filepath = centers[i]
-                y_train[i-1] = float(steerings[i])
+                y_train[i] = float(steerings[i])
             elif choice == 1:
                 filepath = lefts[i]
-                y_train[i-1] = float(steerings[i]) + 0.3
+                y_train[i] = float(steerings[i]) + correction
             else:
                 filepath = rights[i]
-                y_train[i-1] = float(steerings[i]) - 0.3
+                y_train[i] = float(steerings[i]) - correction
 
             image = load_image(filepath)
             #convert to YUV planes
@@ -58,11 +60,11 @@ def X_train_gen(trainning, batch_size):
             # do random flip of 50% of images to avoid left turn bias
             if randint(0,1) == 1:
                 image = np.fliplr(image)
-                y_train[i-1] = -y_train[i-1]
+                y_train[i] = -y_train[i]
 
             # resize image to 160x320
             image = cv2.resize(image, (320, 160), interpolation=cv2.INTER_AREA)
-            X_train[i-1] = image
+            X_train[i] = image
 
         yield X_train, y_train
 
@@ -72,30 +74,22 @@ def X_valid_gen(validation, batch_size):
     while True:
         validation = shuffle(validation)
         centers = validation['center'].values
-        lefts = validation['left'].values
-        rights = validation['right'].values
         steerings = validation['steering'].values
         
-        for i in range(1, batch_size+1):
-            choice = randint(0,2)
-            filepath = ""
-            if choice == 0:
-                filepath = centers[i]
-            elif choice == 1:
-                filepath = lefts[i]
-            else:
-                filepath = rights[i]
+        for i in range(0, batch_size):
+            #validation only use center image
+            filepath = centers[i]
             image = load_image(filepath)
             #convert to YUV planes
             image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
             #resize image to
-            image = cv2.resize(image, (160, 320), interpolation=cv2.INTER_AREA)
-            X_valid[i-1] = image
-            y_valid[i-1] = float(steerings[i])
+            image = cv2.resize(image, (320, 160), interpolation=cv2.INTER_AREA)
+            X_valid[i] = image
+            y_valid[i] = float(steerings[i])
         yield X_valid, y_valid
 
 # load data
-trannings = pandas.read_csv(home_path+'data/driving_log.csv', names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+trannings = pandas.read_csv(home_path+'data/driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train_org = trannings['steering'].values
 
 # drop 3/4 of straight moving examples, skip header index = 0
@@ -111,24 +105,24 @@ def nvida_model():
     input_shape = (160, 320, 3)
     model = Sequential()
     model.add(Lambda(lambda x: x/255 - 0.5, input_shape = input_shape))
-    model.add(Cropping2D(cropping=((64, 64), (0, 0)), input_shape=(160, 320, 3)))
-    model.add(Convolution2D(24, 5, 5, activation='relu', W_regularizer = l2(0.001)))
+    #crop top 60 and bottom 20
+    model.add(Cropping2D(cropping=((50, 20), (0, 0)), input_shape=input_shape))
+    model.add(Convolution2D(24, 5, 5, activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Convolution2D(36, 5, 5, activation='relu', W_regularizer = l2(0.001)))
-    model.add(Convolution2D(48, 3, 3, activation='relu', W_regularizer = l2(0.001)))
-    model.add(Convolution2D(64, 3, 3, activation='relu', W_regularizer = l2(0.001)))
-    model.add(Convolution2D(64, 3, 3, activation='relu', W_regularizer = l2(0.001)))
+    model.add(Convolution2D(36, 5, 5, activation='relu'))
+    model.add(Convolution2D(48, 3, 3, activation='relu'))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
+    model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Flatten())
     # OOM in aws g2
-    model.add(Dense(500, activation='relu'))
-    model.add(Dropout(0.5))
+    #model.add(Dense(100, activation='relu'))
     model.add(Dense(100, activation='relu'))
     model.add(Dropout(0.5))
     model.add(Dense(50, activation='relu'))
     model.add(Dropout(0.5))
     model.add(Dense(10, activation='relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(1, activation='tanh'))
+    model.add(Dense(1))
     model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
     return model
 
@@ -136,20 +130,20 @@ def nvida_model():
 model = nvida_model()
 model.summary()
 
-history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=256),
+history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512),
                               samples_per_epoch=256,
-                              validation_data=X_valid_gen(validation=trannings, batch_size=256),
+                              validation_data=X_valid_gen(validation=trannings, batch_size=512),
                               nb_val_samples=256,nb_epoch=10,
                               verbose=1)
 
-print(history.history.keys())
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('model mean squared error loss')
-plt.ylabel('mean squared error loss')
-plt.xlabel('epoch')
-plt.legend(['training set', 'validation set'], loc='upper right')
-plt.show()
+print(history.history['loss'])
+#plt.plot(history.history['loss'])
+#plt.plot(history.history['val_loss'])
+#plt.title('model mean squared error loss')
+#plt.ylabel('mean squared error loss')
+#plt.xlabel('epoch')
+#plt.legend(['training set', 'validation set'], loc='upper right')
+#plt.show()
 
 # Save model to JSON
 with open('model.json', 'w') as outfile:
