@@ -12,10 +12,8 @@ import json
 from keras.layers import Dense, Cropping2D, Convolution2D, MaxPooling2D, Dropout, Lambda
 from keras.layers import Flatten
 from keras.models import Sequential
-from keras.optimizers import Adam
-from keras.regularizers import l2
 
-home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/'
+home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/train/'
 
 def load_image(filepath):
     path = home_path + 'data/IMG/' + os.path.split(filepath)[1]
@@ -80,6 +78,7 @@ def X_valid_gen(validation, batch_size):
             #validation only use center image
             filepath = centers[i]
             image = load_image(filepath)
+            image = randomize_brightness(image)
             #convert to YUV planes
             image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
             #resize image to
@@ -93,13 +92,20 @@ trannings = pandas.read_csv(home_path+'data/driving_log.csv', skiprows=[0], name
 y_train_org = trannings['steering'].values
 
 # drop 3/4 of straight moving examples, skip header index = 0
-#drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.25 and randint(0, 3) != 0]
+#drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.25 and randint(0, 2) != 0]
 #trannings.drop(drop_rows, inplace=True)
 
 # exame distribution of steering bias
-#plt.hist(y_train)
+#plt.hist(y_train_org)
 #plt.ylabel('steering values distribution')
 #plt.show()
+
+def randomize_brightness(image):
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    random_brightness = .1 + np.random.uniform()
+    image[:,:,2] = image[:,:,2] * random_brightness
+    image = cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
+    return image
 
 def nvida_model():
     input_shape = (160, 320, 3)
@@ -130,13 +136,9 @@ def nvida_model():
 model = nvida_model()
 model.summary()
 
-history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512),
-                              samples_per_epoch=256,
-                              validation_data=X_valid_gen(validation=trannings, batch_size=512),
-                              nb_val_samples=256,nb_epoch=10,
-                              verbose=1)
+history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512),samples_per_epoch=len(y_train_org),validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
 
-print(history.history['loss'])
+#print(history.history['loss'])
 #plt.plot(history.history['loss'])
 #plt.plot(history.history['val_loss'])
 #plt.title('model mean squared error loss')
@@ -146,7 +148,7 @@ print(history.history['loss'])
 #plt.show()
 
 # Save model to JSON
-with open('model.json', 'w') as outfile:
-    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
+#with open('model.json', 'w') as outfile:
+#    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
 
-model.save("model.h5")
+#model.save("model.h5")
