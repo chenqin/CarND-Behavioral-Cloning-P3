@@ -13,7 +13,7 @@ from keras.layers import Dense, Cropping2D, Convolution2D, MaxPooling2D, Dropout
 from keras.layers import Flatten
 from keras.models import Sequential
 
-home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/'
+home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/'
 
 def load_image(filepath):
     path = home_path + 'data/IMG/' + os.path.split(filepath)[1]
@@ -28,7 +28,7 @@ def X_train_gen(trainning, batch_size):
     X_train = np.zeros((batch_size, 160, 320, 3), dtype=float)
     y_train = np.zeros(batch_size, dtype=float)
     # use left and right camera need to make correction due to geometry factor
-    correction = 0.2
+    correction = 0.3
 
     while True:
         trainning = shuffle(trainning)
@@ -92,14 +92,14 @@ trannings = pandas.read_csv(home_path+'data/driving_log.csv', skiprows=[0], name
 y_train_org = trannings['steering'].values
 
 # drop 3/4 of straight moving examples, skip header index = 0
-drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.1 and randint(0, 10) != 0]
+drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.1 and randint(0, 3) != 0]
 trannings.drop(drop_rows, inplace=True)
 y_train_org = trannings['steering'].values
 
 # exame distribution of steering bias
-plt.hist(y_train_org)
+#plt.hist(y_train_org)
 #plt.ylabel('steering values distribution')
-plt.show()
+#plt.show()
 
 def randomize_brightness(image):
     image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
@@ -121,14 +121,11 @@ def nvida_model():
     model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Flatten())
-    # OOM in aws g2
-    #model.add(Dense(100, activation='relu'))
+    model.add(Dense(1164, activation='relu'))
+    model.add(Dropout(0.5))
     model.add(Dense(100, activation='relu'))
-    model.add(Dropout(0.5))
     model.add(Dense(50, activation='relu'))
-    model.add(Dropout(0.5))
     model.add(Dense(10, activation='relu'))
-    model.add(Dropout(0.5))
     model.add(Dense(1))
     model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
     return model
@@ -137,7 +134,7 @@ def nvida_model():
 model = nvida_model()
 model.summary()
 
-#history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512),samples_per_epoch=len(y_train_org),validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
+history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
 
 #print(history.history['loss'])
 #plt.plot(history.history['loss'])
@@ -149,7 +146,7 @@ model.summary()
 #plt.show()
 
 # Save model to JSON
-#with open('model.json', 'w') as outfile:
-#    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
+with open('model.json', 'w') as outfile:
+    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
 
-#model.save("model.h5")
+model.save_weights("model.h5")
