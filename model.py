@@ -13,7 +13,7 @@ from keras.layers import Dense, Cropping2D, Convolution2D, MaxPooling2D, Dropout
 from keras.layers import Flatten
 from keras.models import Sequential
 
-home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/'
+home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/'
 
 def load_image(filepath):
     path = home_path + 'data/IMG/' + os.path.split(filepath)[1]
@@ -66,6 +66,11 @@ def X_train_gen(trainning, batch_size):
 
         yield X_train, y_train
 
+def enforce_distribution(steerings):
+    count, bins, ignored = plt.hist(steerings, 21, normed=True)
+    plt.ylabel('steering values distribution')
+    plt.show()
+
 def X_valid_gen(validation, batch_size):
     X_valid = np.zeros((batch_size, 160, 320, 3), dtype=float)
     y_valid = np.zeros(batch_size, dtype=float)
@@ -91,15 +96,10 @@ def X_valid_gen(validation, batch_size):
 trannings = pandas.read_csv(home_path+'data/driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train_org = trannings['steering'].values
 
-# drop 3/4 of straight moving examples, skip header index = 0
-drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.1 and randint(0, 3) != 0]
+# drop 80%å of straight moving examples, skip header index = 0
+drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.1 and randint(0, 4) != 0]
 trannings.drop(drop_rows, inplace=True)
 y_train_org = trannings['steering'].values
-
-# exame distribution of steering bias
-#plt.hist(y_train_org)
-#plt.ylabel('steering values distribution')
-#plt.show()
 
 def randomize_brightness(image):
     image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
@@ -131,10 +131,13 @@ def nvida_model():
     return model
 
 
-model = nvida_model()
-model.summary()
+#model = nvida_model()
+#model.summary()
 
-history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
+x, y = next(X_train_gen(trainning=trannings, batch_size=512))
+enforce_distribution(y)
+
+#history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
 
 #print(history.history['loss'])
 #plt.plot(history.history['loss'])
@@ -146,7 +149,7 @@ history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512), 
 #plt.show()
 
 # Save model to JSON
-with open('model.json', 'w') as outfile:
-    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
+#with open('model.json', 'w') as outfile:
+#    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
 
-model.save_weights("model.h5")
+#model.save_weights("model.h5")
