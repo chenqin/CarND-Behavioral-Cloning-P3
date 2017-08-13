@@ -11,9 +11,11 @@ import os
 import json
 from keras.layers import Dense, Cropping2D, Convolution2D, MaxPooling2D, Dropout, Lambda
 from keras.layers import Flatten
+from keras.optimizers import Adam
 from keras.models import Sequential
 
 home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/'
+batch_size = 256
 
 def load_image(filepath):
     if len(filepath.split('/')) > 1:
@@ -30,8 +32,6 @@ def load_image(filepath):
 def X_train_gen(trainning, batch_size):
     X_train = np.zeros((batch_size, 160, 320, 3), dtype=float)
     y_train = np.zeros(batch_size, dtype=float)
-    # use left and right camera need to make correction due to geometry factor
-    correction = 0.3
 
     while True:
         trainning = shuffle(trainning)
@@ -49,10 +49,10 @@ def X_train_gen(trainning, batch_size):
                 y_train[i] = float(steerings[i])
             elif choice == 1:
                 filepath = lefts[i]
-                y_train[i] = float(steerings[i]) + correction
+                y_train[i] = float(steerings[i]) + np.random.uniform(0, 0.1)
             else:
                 filepath = rights[i]
-                y_train[i] = float(steerings[i]) - correction
+                y_train[i] = float(steerings[i]) + np.random.uniform(-0.1, 0)
 
             image = load_image(filepath)
             #convert to YUV planes
@@ -68,11 +68,6 @@ def X_train_gen(trainning, batch_size):
             X_train[i] = image
 
         yield X_train, y_train
-
-def enforce_distribution(steerings):
-    count, bins, ignored = plt.hist(steerings, 21, normed=True)
-    plt.ylabel('steering values distribution')
-    plt.show()
 
 def X_valid_gen(validation, batch_size):
     X_valid = np.zeros((batch_size, 160, 320, 3), dtype=float)
@@ -100,7 +95,7 @@ trannings = pandas.read_csv(home_path+'joystick/driving_log.csv', skiprows=[0], 
 y_train_org = trannings['steering'].values
 
 # drop 80% of straight moving examples, skip header index = 0
-drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.1 and randint(0, 8) != 0]
+drop_rows = [i for i in range(1, len(y_train_org)) if abs(float(y_train_org[i])) < 0.1 and randint(0, 8) != 0]
 trannings.drop(drop_rows, inplace=True)
 y_train_org = trannings['steering'].values
 
@@ -115,7 +110,7 @@ def nvida_model():
     input_shape = (160, 320, 3)
     model = Sequential()
     model.add(Lambda(lambda x: x/255 - 0.5, input_shape = input_shape))
-    #crop top 60 and bottom 20
+    #crop top 50 and bottom 20
     model.add(Cropping2D(cropping=((50, 20), (0, 0)), input_shape=input_shape))
     model.add(Convolution2D(24, 5, 5, activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
@@ -124,20 +119,20 @@ def nvida_model():
     model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Flatten())
-    model.add(Dense(1164, activation='relu'))
+    model.add(Dense(256, activation='relu'))
     model.add(Dropout(0.5))
     model.add(Dense(100, activation='relu'))
+    model.add(Dropout(0.75))
     model.add(Dense(50, activation='relu'))
     model.add(Dense(10, activation='relu'))
     model.add(Dense(1))
-    model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
     return model
 
 
 model = nvida_model()
-model.summary()
+model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
 
-history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
+history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=batch_size), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=batch_size),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
 
 print(history.history['loss'])
 
