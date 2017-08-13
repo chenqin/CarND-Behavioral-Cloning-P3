@@ -13,10 +13,13 @@ from keras.layers import Dense, Cropping2D, Convolution2D, MaxPooling2D, Dropout
 from keras.layers import Flatten
 from keras.models import Sequential
 
-home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/'
+home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/'
 
 def load_image(filepath):
-    path = home_path + 'data/IMG/' + os.path.split(filepath)[1]
+    if len(filepath.split('/')) > 1:
+        path = home_path + 'joystick/IMG/' + filepath.split('/')[-1]
+    else:
+        path = home_path + 'joystick/IMG/' + filepath.split('\\')[-1]
     return cv2.imread(path)
 
 
@@ -93,11 +96,11 @@ def X_valid_gen(validation, batch_size):
         yield X_valid, y_valid
 
 # load data
-trannings = pandas.read_csv(home_path+'data/driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+trannings = pandas.read_csv(home_path+'joystick/driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train_org = trannings['steering'].values
 
-# drop 80%å of straight moving examples, skip header index = 0
-drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.1 and randint(0, 4) != 0]
+# drop 80% of straight moving examples, skip header index = 0
+drop_rows = [i for i in range(1, len(y_train_org)) if math.fabs(float(y_train_org[i])) < 0.1 and randint(0, 8) != 0]
 trannings.drop(drop_rows, inplace=True)
 y_train_org = trannings['steering'].values
 
@@ -131,25 +134,15 @@ def nvida_model():
     return model
 
 
-#model = nvida_model()
-#model.summary()
+model = nvida_model()
+model.summary()
 
-x, y = next(X_train_gen(trainning=trannings, batch_size=512))
-enforce_distribution(y)
+history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
 
-#history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=512), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=512),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
-
-#print(history.history['loss'])
-#plt.plot(history.history['loss'])
-#plt.plot(history.history['val_loss'])
-#plt.title('model mean squared error loss')
-#plt.ylabel('mean squared error loss')
-#plt.xlabel('epoch')
-#plt.legend(['training set', 'validation set'], loc='upper right')
-#plt.show()
+print(history.history['loss'])
 
 # Save model to JSON
-#with open('model.json', 'w') as outfile:
-#    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
+with open('model.json', 'w') as outfile:
+    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
 
-#model.save_weights("model.h5")
+model.save("model.h5")
