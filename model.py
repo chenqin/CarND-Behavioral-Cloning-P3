@@ -17,7 +17,7 @@ from collections import defaultdict
 global stats
 global trainnings, home_path, y_train_org
 
-home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/data/'
+home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/data/'
 stats = defaultdict(float)
 
 def load_image(filepath):
@@ -117,29 +117,21 @@ def visualize_steering(steerings):
     plt.grid(True)
     plt.show()
 
-def run_model():
-    global trainnings, y_train_org
-    model = modified_nvida_model()
-    model.summary()
-
-    model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
-    history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/5, 
-        validation_data=X_gen(trainnings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
-
-    print(history.history['loss'])
-
-    # Save model to JSON
-    with open('model.json', 'w') as outfile:
-        outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
-
-    #save model
-    model.save("model.h5")
-
 # load data
-def load_data():
-    global home_path, y_train_org
-    trannings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
-    y_train_org = trannings['steering'].values
+trainnings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+y_train_org = trainnings['steering'].values
+model = modified_nvida_model()
+model.summary()
 
-load_data()
-run_model()
+model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
+history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/5, 
+    validation_data=X_gen(trainnings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
+
+print(history.history['loss'])
+
+# Save model to JSON
+with open('model.json', 'w') as outfile:
+    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
+
+#save model
+model.save("model.h5")
