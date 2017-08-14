@@ -15,7 +15,7 @@ from keras.optimizers import Adam
 from collections import defaultdict
 
 global stats
-global trannings, home_path
+global trainnings, home_path, y_train_org
 
 home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/data/'
 stats = defaultdict(float)
@@ -118,12 +118,13 @@ def visualize_steering(steerings):
     plt.show()
 
 def run_model():
+    global trainnings, y_train_org
     model = modified_nvida_model()
     model.summary()
 
     model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
-    history = model.fit_generator(X_gen(trannings, batch_size=128), samples_per_epoch=len(y_train_org)/5, 
-        validation_data=X_gen(trannings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
+    history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/5, 
+        validation_data=X_gen(trainnings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
 
     print(history.history['loss'])
 
@@ -136,6 +137,7 @@ def run_model():
 
 # load data
 def load_data():
+    global home_path, y_train_org
     trannings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
     y_train_org = trannings['steering'].values
 
