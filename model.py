@@ -2,7 +2,6 @@ import pandas
 from random import randint
 import numpy as np
 import matplotlib.pyplot as plt
-import random
 from sklearn.utils import shuffle
 from keras.backend import tf as ktf
 import math
@@ -11,93 +10,19 @@ import os
 import json
 from keras.layers import Dense, Cropping2D, Convolution2D, MaxPooling2D, Dropout, Lambda
 from keras.layers import Flatten
-from keras.optimizers import Adam
 from keras.models import Sequential
+from keras.optimizers import Adam
 
-home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/'
-batch_size = 256
+home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/joystick/'
 
 def load_image(filepath):
+    #for non windows systems
     if len(filepath.split('/')) > 1:
-        path = home_path + 'joystick/IMG/' + filepath.split('/')[-1]
+        path = home_path + 'IMG/' + filepath.split('/')[-1]
     else:
-        path = home_path + 'joystick/IMG/' + filepath.split('\\')[-1]
+        #for windows
+        path = home_path + 'IMG/' + filepath.split('\\')[-1]
     return cv2.imread(path)
-
-
-# preprocessing image files
-# flip image, and change steering to opposite direction
-# open image as grey scale, resize to 64x64x3
-# normalize image to (-1, 1)
-def X_train_gen(trainning, batch_size):
-    X_train = np.zeros((batch_size, 160, 320, 3), dtype=float)
-    y_train = np.zeros(batch_size, dtype=float)
-
-    while True:
-        trainning = shuffle(trainning)
-        centers = trainning['center'].values
-        lefts = trainning['left'].values
-        rights = trainning['right'].values
-        steerings = trannings['steering'].values
-
-        for i in range(0, batch_size):
-            #overlap left , center, right into trainning set
-            choice = randint(0,2)
-            filepath = ""
-            if choice == 0:
-                filepath = centers[i]
-                y_train[i] = float(steerings[i])
-            elif choice == 1:
-                filepath = lefts[i]
-                y_train[i] = float(steerings[i]) + np.random.uniform(0, 0.1)
-            else:
-                filepath = rights[i]
-                y_train[i] = float(steerings[i]) + np.random.uniform(-0.1, 0)
-
-            image = load_image(filepath)
-            #convert to YUV planes
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
-
-            # do random flip of 50% of images to avoid left turn bias
-            if randint(0,1) == 1:
-                image = np.fliplr(image)
-                y_train[i] = -y_train[i]
-
-            # resize image to 160x320
-            image = cv2.resize(image, (320, 160), interpolation=cv2.INTER_AREA)
-            X_train[i] = image
-
-        yield X_train, y_train
-
-def X_valid_gen(validation, batch_size):
-    X_valid = np.zeros((batch_size, 160, 320, 3), dtype=float)
-    y_valid = np.zeros(batch_size, dtype=float)
-    while True:
-        validation = shuffle(validation)
-        centers = validation['center'].values
-        steerings = validation['steering'].values
-        
-        for i in range(0, batch_size):
-            #validation only use center image
-            filepath = centers[i]
-            image = load_image(filepath)
-            image = randomize_brightness(image)
-            #convert to YUV planes
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
-            #resize image to
-            image = cv2.resize(image, (320, 160), interpolation=cv2.INTER_AREA)
-            X_valid[i] = image
-            y_valid[i] = float(steerings[i])
-        yield X_valid, y_valid
-
-# load data
-trannings = pandas.read_csv(home_path+'joystick/driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
-y_train_org = trannings['steering'].values
-
-# drop 80% of straight moving examples, skip header index = 0
-drop_rows = [i for i in range(1, len(y_train_org)) if abs(float(y_train_org[i])) < 0.1 and randint(0, 8) != 0]
-trannings.drop(drop_rows, inplace=True)
-y_train_org = trannings['steering'].values
 
 def randomize_brightness(image):
     image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
@@ -106,33 +31,85 @@ def randomize_brightness(image):
     image = cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
     return image
 
-def nvida_model():
+# preprocessing image files
+# flip image, and change steering to opposite direction
+# open image as grey scale, resize to 160x320(in case photo are taken with different size)
+def X_gen(data, batch_size):
+    X_train = np.zeros((batch_size, 160, 320, 3), dtype=float)
+    y_train = np.zeros(batch_size, dtype=float)
+    # use left and right camera need to make correction due to geometry factor
+    correction = 0.25
+    data = shuffle(data)
+
+    while True:
+        centers = data['center'].values
+        lefts = data['left'].values
+        rights = data['right'].values
+        steerings = data['steering'].values
+
+        for index in range(0, batch_size):
+	        #random pick a pic
+            i = np.random.randint(len(data))
+	        #overlap left , center, right into data set
+            choice = np.random.randint(3)
+            filepath = ""
+            if choice == 0:
+                filepath = centers[i]
+                y_train[index] = float(steerings[i]) 
+            elif choice == 1:
+                filepath = lefts[i]
+                y_train[index] = float(steerings[i]) + correction
+            else:
+                filepath = rights[i]
+                y_train[index] = float(steerings[i]) - correction
+            #load image and randomize brightness
+            image = randomize_brightness(load_image(filepath))
+            #convert to YUV planes
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
+
+            # do random flip of 50% of images to avoid left turn bias
+            if randint(0,1) == 1:
+                image = np.fliplr(image)
+                y_train[index] = -y_train[index]
+
+            # resize image to 160x320
+            image = cv2.resize(image, (320, 160), interpolation=cv2.INTER_AREA)
+            X_train[index] = image
+
+        yield X_train, y_train
+
+
+def modified_nvida_model():
     input_shape = (160, 320, 3)
     model = Sequential()
+    #normalize cell value to [-0.5, 0.5]
     model.add(Lambda(lambda x: x/255 - 0.5, input_shape = input_shape))
     #crop top 50 and bottom 20
     model.add(Cropping2D(cropping=((50, 20), (0, 0)), input_shape=input_shape))
     model.add(Convolution2D(24, 5, 5, activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Convolution2D(36, 5, 5, activation='relu'))
     model.add(Convolution2D(48, 3, 3, activation='relu'))
     model.add(Convolution2D(64, 3, 3, activation='relu'))
-    model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Flatten())
-    model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.5))
+    #avoid OOM and remove first dense(1164)
     model.add(Dense(100, activation='relu'))
-    model.add(Dropout(0.75))
+    model.add(Dropout(0.5))
     model.add(Dense(50, activation='relu'))
+    model.add(Dropout(0.75))
     model.add(Dense(10, activation='relu'))
     model.add(Dense(1))
     return model
 
 
-model = nvida_model()
-model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
+# load data
+trannings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+y_train_org = trannings['steering'].values
 
-history = model.fit_generator(X_train_gen(trainning=trannings, batch_size=batch_size), samples_per_epoch=len(y_train_org), validation_data=X_valid_gen(validation=trannings, batch_size=batch_size),nb_val_samples=len(y_train_org)/5,nb_epoch=10,verbose=1)
+model = modified_nvida_model()
+model.summary()
+
+model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
+history = model.fit_generator(X_gen(trainning=trannings, batch_size=128), samples_per_epoch=len(y_train_org)/5, validation_data=X_gen(trannings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
 
 print(history.history['loss'])
 
@@ -140,4 +117,5 @@ print(history.history['loss'])
 with open('model.json', 'w') as outfile:
     outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
 
+#save model
 model.save("model.h5")
