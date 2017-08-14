@@ -120,11 +120,15 @@ def visualize_steering(steerings):
 # load data
 trainnings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train_org = trainnings['steering'].values
+drop_rows = [i for i in range(1, len(y_train_org)) if abs(float(y_train_org[i])) < 0.1 and np.random.randint(3) != 0]
+trainnings.drop(drop_rows, inplace=True)
+y_train_org = trannings['steering'].values
+
 model = modified_nvida_model()
 model.summary()
 
 model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
-history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/5, 
+history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/, 
     validation_data=X_gen(trainnings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
 
 print(history.history['loss'])
