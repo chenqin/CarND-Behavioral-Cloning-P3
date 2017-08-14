@@ -12,8 +12,13 @@ from keras.layers import Dense, Cropping2D, Convolution2D, MaxPooling2D, Dropout
 from keras.layers import Flatten
 from keras.models import Sequential
 from keras.optimizers import Adam
+from collections import defaultdict
 
-home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/joystick/'
+global stats
+global trannings, home_path
+
+home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/data/'
+stats = defaultdict(float)
 
 def load_image(filepath):
     #for non windows systems
@@ -62,7 +67,7 @@ def X_gen(data, batch_size):
             else:
                 filepath = rights[i]
                 y_train[index] = float(steerings[i]) - correction
-            #load image and randomize brightness
+            #load image and randomize brightness, avoid overfit
             image = randomize_brightness(load_image(filepath))
             #convert to YUV planes
             image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
@@ -87,35 +92,52 @@ def modified_nvida_model():
     #crop top 50 and bottom 20
     model.add(Cropping2D(cropping=((50, 20), (0, 0)), input_shape=input_shape))
     model.add(Convolution2D(24, 5, 5, activation='relu'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
     model.add(Convolution2D(36, 5, 5, activation='relu'))
     model.add(Convolution2D(48, 3, 3, activation='relu'))
     model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Flatten())
     #avoid OOM and remove first dense(1164)
     model.add(Dense(100, activation='relu'))
+    #avoid overfit by dropout
     model.add(Dropout(0.5))
     model.add(Dense(50, activation='relu'))
     model.add(Dropout(0.75))
     model.add(Dense(10, activation='relu'))
+    model.add(Dropout(0.75))
     model.add(Dense(1))
     return model
 
 
+def visualize_steering(steerings):
+    y, x = np.histogram(steerings)
+    nbins = y.size
+    plt.bar(x[:-1], y, width=x[1]-x[0], color='red', alpha=0.5)
+    plt.hist(steerings, bins=nbins, alpha=0.5)
+    plt.grid(True)
+    plt.show()
+
+def run_model():
+    model = modified_nvida_model()
+    model.summary()
+
+    model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
+    history = model.fit_generator(X_gen(trannings, batch_size=128), samples_per_epoch=len(y_train_org)/5, 
+        validation_data=X_gen(trannings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
+
+    print(history.history['loss'])
+
+    # Save model to JSON
+    with open('model.json', 'w') as outfile:
+        outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
+
+    #save model
+    model.save("model.h5")
+
 # load data
-trannings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
-y_train_org = trannings['steering'].values
+def load_data():
+    trannings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+    y_train_org = trannings['steering'].values
 
-model = modified_nvida_model()
-model.summary()
-
-model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
-history = model.fit_generator(X_gen(trainning=trannings, batch_size=128), samples_per_epoch=len(y_train_org)/5, validation_data=X_gen(trannings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
-
-print(history.history['loss'])
-
-# Save model to JSON
-with open('model.json', 'w') as outfile:
-    outfile.write(json.dumps(json.loads(model.to_json()), indent=2))
-
-#save model
-model.save("model.h5")
+load_data()
+run_model()
