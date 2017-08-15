@@ -17,11 +17,11 @@ from collections import defaultdict
 global stats
 global trainnings, home_path, y_train_org
 
-home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/data/'
+home_path = '/home/carnd/CarND-Behavioral-Cloning-P3/data/'
 stats = defaultdict(float)
 
 def load_image(filepath):
-    #for non windows systems
+    #for posix
     if len(filepath.split('/')) > 1:
         path = home_path + 'IMG/' + filepath.split('/')[-1]
     else:
@@ -53,9 +53,9 @@ def X_gen(data, batch_size):
         steerings = data['steering'].values
 
         for index in range(0, batch_size):
-	        #random pick a pic
+            #random pick a pic
             i = np.random.randint(len(data))
-	        #overlap left , center, right into data set
+            #overlap left , center, right into data set
             choice = np.random.randint(3)
             filepath = ""
             if choice == 0:
@@ -120,7 +120,9 @@ def visualize_steering(steerings):
 # load data
 trainnings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train_org = trainnings['steering'].values
-drop_rows = [i for i in range(1, len(y_train_org)) if abs(float(y_train_org[i])) < 0.1 and np.random.randint(3) != 0]
+
+#drop some straight samples to avoid bais towards straight drive
+drop_rows = [i for i in range(1, len(y_train_org)) if abs(float(y_train_org[i])) < 0.1 and np.random.randint(8) != 0]
 trainnings.drop(drop_rows, inplace=True)
 y_train_org = trannings['steering'].values
 
@@ -128,7 +130,7 @@ model = modified_nvida_model()
 model.summary()
 
 model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
-history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/, 
+history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/3,
     validation_data=X_gen(trainnings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
 
 print(history.history['loss'])
