@@ -28,7 +28,7 @@ The goals / steps of this project are the following:
 
 My project includes the following files:(due to size constraint in github, model.h5 was removed)
 * model.py containing the script to create and train the model
-* run3/ folder contains images captured in autonomous drive
+* data folder https://drive.google.com/file/d/0B--NLNkfW8vnVDRqLTNZNlQ2aGM/view?usp=sharing
 * run3.mp4 for video of automous driving on track
 * writeup.md summarizing the results
 
