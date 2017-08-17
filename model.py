@@ -17,11 +17,11 @@ from collections import defaultdict
 global stats
 global trainnings, home_path, y_train_org
 
-home_path = '/Users/chenqin/CarND-Behavioral-Cloning-P3/data/'
+home_path = ''
 stats = defaultdict(float)
 
 def load_image(filepath):
-    #for non windows systems
+    #for posix
     if len(filepath.split('/')) > 1:
         path = home_path + 'IMG/' + filepath.split('/')[-1]
     else:
@@ -39,11 +39,11 @@ def randomize_brightness(image):
 # preprocessing image files
 # flip image, and change steering to opposite direction
 # open image as grey scale, resize to 160x320(in case photo are taken with different size)
-def X_gen(data, batch_size):
+def X_gen(data, batch_size, is_valid=False):
     X_train = np.zeros((batch_size, 160, 320, 3), dtype=float)
     y_train = np.zeros(batch_size, dtype=float)
     # use left and right camera need to make correction due to geometry factor
-    correction = 0.25
+    correction = 0.3
     data = shuffle(data)
 
     while True:
@@ -53,12 +53,12 @@ def X_gen(data, batch_size):
         steerings = data['steering'].values
 
         for index in range(0, batch_size):
-	        #random pick a pic
+            #random pick a pic
             i = np.random.randint(len(data))
-	        #overlap left , center, right into data set
+            #overlap left , center, right into data set
             choice = np.random.randint(3)
             filepath = ""
-            if choice == 0:
+            if choice == 0 or is_valid:
                 filepath = centers[i]
                 y_train[index] = float(steerings[i]) 
             elif choice == 1:
@@ -68,15 +68,14 @@ def X_gen(data, batch_size):
                 filepath = rights[i]
                 y_train[index] = float(steerings[i]) - correction
             #load image and randomize brightness, avoid overfit
-            image = randomize_brightness(load_image(filepath))
-            #convert to YUV planes
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
+            image = randomize_brightness(load_image(filepath)) if not is_valid else load_image(filepath)
 
             # do random flip of 50% of images to avoid left turn bias
-            if randint(0,1) == 1:
+            if randint(0,1) == 1 and not is_valid:
                 image = np.fliplr(image)
                 y_train[index] = -y_train[index]
 
+            y_train[index] = 2*y_train[index] if not is_valid else y_train[index]
             # resize image to 160x320
             image = cv2.resize(image, (320, 160), interpolation=cv2.INTER_AREA)
             X_train[index] = image
@@ -98,7 +97,7 @@ def modified_nvida_model():
     model.add(Convolution2D(64, 3, 3, activation='relu'))
     model.add(Flatten())
     #avoid OOM and remove first dense(1164)
-    model.add(Dense(100, activation='relu'))
+    model.add(Dense(256, activation='relu'))
     #avoid overfit by dropout
     model.add(Dropout(0.5))
     model.add(Dense(50, activation='relu'))
@@ -118,18 +117,20 @@ def visualize_steering(steerings):
     plt.show()
 
 # load data
-trainnings = pandas.read_csv(home_path+'driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
+trainnings = pandas.read_csv('driving_log.csv', skiprows=[0], names=['center', 'left', 'right', 'steering', 'throttle', 'break', 'speed'])
 y_train_org = trainnings['steering'].values
-drop_rows = [i for i in range(1, len(y_train_org)) if abs(float(y_train_org[i])) < 0.1 and np.random.randint(3) != 0]
-trainnings.drop(drop_rows, inplace=True)
-y_train_org = trannings['steering'].values
 
+#drop some straight samples to avoid bais towards straight drive
+drop_rows = [i for i in range(1, len(y_train_org)) if abs(float(y_train_org[i])) < 0.1 and np.random.randint(12) != 0]
+trainnings.drop(drop_rows, inplace=True)
+y_train_org = trainnings['steering'].values
+visualize_steering(y_train_org)
 model = modified_nvida_model()
 model.summary()
 
 model.compile(optimizer=Adam(lr=0.0001), loss="mse", metrics=['accuracy'])
-history = model.fit_generator(X_gen(trainnings, batch_size=128), samples_per_epoch=len(y_train_org)/, 
-    validation_data=X_gen(trainnings, 128),nb_val_samples=len(y_train_org)/3,nb_epoch=5,verbose=1)
+history = model.fit_generator(X_gen(trainnings, batch_size=256), samples_per_epoch=len(y_train_org),
+    validation_data=X_gen(trainnings, 256, True),nb_val_samples=len(y_train_org),nb_epoch=3,verbose=1)
 
 print(history.history['loss'])
 
