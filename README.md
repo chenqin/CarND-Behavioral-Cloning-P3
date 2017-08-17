@@ -119,11 +119,14 @@ Will run the video at 48 FPS. The default FPS is 60.
 
 
 ####Model detail
+
 The final model I picked was based on nvidia model which consists of
-normalization with same matrix dimension only normalize cell value to -0.5 - 0,5
-cropping image to remove upper and lower part sky or bumper
-for convolution layers to abstract features, including using maxpooling right after first CNN layer to de noise
-four fully connected layers with dropouts in the middle to avoid overfit
+*normalization with same matrix dimension only normalize cell value to -0.5 - 0,5
+*cropping image to remove upper and lower part sky or bumper
+*for convolution layers to abstract features, including using maxpooling right after first CNN layer to de noise
+*four fully connected layers with dropouts in the middle to avoid overfit
+Detail below
+
 ____________________________________________________________________________________________________
 Layer (type)                     Output Shape          Param #     Connected to
 ====================================================================================================
@@ -157,3 +160,22 @@ dropout_3 (Dropout)              (None, 10)            0           dense_3[0][0]
 ____________________________________________________________________________________________________
 dense_4 (Dense)                  (None, 1)             11          dropout_3[0][0]
 ====================================================================================================
+
+#### Training dataset
+I started from doing two forward laps (default direction) and tested data without trim distribution. I ends up with
+car driving forward and bearly moving when it encounter a turn. I visualize results in my local machine and found the
+dataset is heavily bais toward moving straight. So I introduced drop_row and remove 80% of abs steering less than 0.1.
+
+I can see car starting to make turns but seems not shape enough, so I added more turn do zigzag on lap, it seems okay until
+it hits really sharp turns and it cross yellow line when the car needs to turn right. I figured there is also a bias
+towards turning left as default direction has lots of left turns and few right turns. I do two things 1) adding reverse direction
+training in dataset, 2) do random flip of left and right.
+
+It ends up with recovery problems after turns seems doing better with changes above. So I record more recovery start from on shoudler
+and move slowing and smoothly back to center.
+
+In order to avoid bias towards certain dataset, I use randomizer to pick image from all training set and left/right camera images. Ends up with
+some correction due to gemotry effect and increase correction from .2 to .3 gives a better steering adjustment response.
+I also find bridge texture seems funky so I randomize image try to beat road brightness of image.
+
+

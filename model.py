@@ -75,7 +75,6 @@ def X_gen(data, batch_size, is_valid=False):
                 image = np.fliplr(image)
                 y_train[index] = -y_train[index]
 
-            y_train[index] = 2*y_train[index] if not is_valid else y_train[index]
             # resize image to 160x320
             image = cv2.resize(image, (320, 160), interpolation=cv2.INTER_AREA)
             X_train[index] = image
