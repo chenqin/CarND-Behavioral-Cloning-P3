@@ -116,3 +116,44 @@ Will run the video at 48 FPS. The default FPS is 60.
 
 1. It's been noted the simulator might perform differently based on the hardware. So if your model drives succesfully on your machine it might not on another machine (your reviewer). Saving a video is a solid backup in case this happens.
 2. You could slightly alter the code in `drive.py` and/or `video.py` to create a video of what your model sees after the image is processed (may be helpful for debugging).
+
+
+####Model detail
+The final model I picked was based on nvidia model which consists of
+normalization with same matrix dimension only normalize cell value to -0.5 - 0,5
+cropping image to remove upper and lower part sky or bumper
+for convolution layers to abstract features, including using maxpooling right after first CNN layer to de noise
+four fully connected layers with dropouts in the middle to avoid overfit
+____________________________________________________________________________________________________
+Layer (type)                     Output Shape          Param #     Connected to
+====================================================================================================
+lambda_1 (Lambda)                (None, 160, 320, 3)   0           lambda_input_1[0][0]
+____________________________________________________________________________________________________
+cropping2d_1 (Cropping2D)        (None, 90, 320, 3)    0           lambda_1[0][0]
+____________________________________________________________________________________________________
+convolution2d_1 (Convolution2D)  (None, 86, 316, 24)   1824        cropping2d_1[0][0]
+____________________________________________________________________________________________________
+maxpooling2d_1 (MaxPooling2D)    (None, 43, 158, 24)   0           convolution2d_1[0][0]
+____________________________________________________________________________________________________
+convolution2d_2 (Convolution2D)  (None, 39, 154, 36)   21636       maxpooling2d_1[0][0]
+____________________________________________________________________________________________________
+convolution2d_3 (Convolution2D)  (None, 37, 152, 48)   15600       convolution2d_2[0][0]
+____________________________________________________________________________________________________
+convolution2d_4 (Convolution2D)  (None, 35, 150, 64)   27712       convolution2d_3[0][0]
+____________________________________________________________________________________________________
+flatten_1 (Flatten)              (None, 336000)        0           convolution2d_4[0][0]
+____________________________________________________________________________________________________
+dense_1 (Dense)                  (None, 256)           86016256    flatten_1[0][0]
+____________________________________________________________________________________________________
+dropout_1 (Dropout)              (None, 256)           0           dense_1[0][0]
+____________________________________________________________________________________________________
+dense_2 (Dense)                  (None, 50)            12850       dropout_1[0][0]
+____________________________________________________________________________________________________
+dropout_2 (Dropout)              (None, 50)            0           dense_2[0][0]
+____________________________________________________________________________________________________
+dense_3 (Dense)                  (None, 10)            510         dropout_2[0][0]
+____________________________________________________________________________________________________
+dropout_3 (Dropout)              (None, 10)            0           dense_3[0][0]
+____________________________________________________________________________________________________
+dense_4 (Dense)                  (None, 1)             11          dropout_3[0][0]
+====================================================================================================
